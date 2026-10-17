@@ -1,6 +1,11 @@
+using Api.Middleware;
+using Application;
+using Asp.Versioning;
+using Common.Options;
 using Infrastructure;
 using Infrastructure.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 
 namespace Api;
 
@@ -12,9 +17,23 @@ public class Program
 
         // Add services to the container.
 
-        builder.Services.AddControllers();
+        builder.Services.AddControllers()
+            .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+        builder.Services.AddApiVersioning(options =>
+        {
+            options.DefaultApiVersion = new ApiVersion(1, 0);
+            options.AssumeDefaultVersionWhenUnspecified = true;
+            options.ApiVersionReader = new UrlSegmentApiVersionReader();
+        }).AddMvc().AddApiExplorer(options =>
+        {
+            options.GroupNameFormat = "'v'V";
+            options.SubstituteApiVersionInUrl = true;
+        });
+        builder.Services.AddProblemDetails();
+        builder.Services.AddExceptionHandler<ApiExceptionHandler>();
         
         await builder.ConfigureInfrastructureLayer();
+        builder.ConfigureApplicationLayer();
         
         // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
         builder.Services.AddOpenApi();
@@ -34,6 +53,8 @@ public class Program
         catch (Exception ex)
         {
             logger.LogError(ex, "An error occurred while migrating or initializing the SQL Server database.");
+            if (builder.Configuration.GetValue<bool>($"{nameof(DemoOptions)}:Enabled"))
+                throw;
         }
 
         // Configure the HTTP request pipeline.
@@ -42,8 +63,11 @@ public class Program
             app.MapOpenApi();
         }
 
+        app.UseExceptionHandler();
+        app.UseStatusCodePages();
         app.UseHttpsRedirection();
 
+        app.UseAuthentication();
         app.UseAuthorization();
 
         app.MapControllers();

@@ -1,10 +1,17 @@
-﻿using Common.Options;
+﻿using Common.Abstractions;
+using Common.Options;
+using Domain.Entities.Artists;
+using Domain.Entities.DSPs;
 using Domain.Entities.Identity;
+using Domain.Entities.TrackDistributions;
+using Domain.Entities.Tracks;
 using Infrastructure.Persistence.Contexts;
 using Infrastructure.Persistence.Interceptors;
+using Infrastructure.Persistence.Repositories;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
@@ -23,12 +30,42 @@ public static class DependencyInjection
 {
     public static async Task<IHostApplicationBuilder> ConfigureInfrastructureLayer(this IHostApplicationBuilder builder)
     {
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+        builder.Services.AddScoped<IArtistRepository, ArtistRepository>();
+        builder.Services.AddScoped<ITrackRepository, TrackRepository>();
+        builder.Services.AddScoped<IDSPRepository, DSPRepository>();
+        builder.Services.AddScoped<ITrackDistributionRepository, TrackDistributionRepository>();
+        builder.Services.AddOptions<DemoOptions>()
+            .Bind(builder.Configuration.GetSection(nameof(DemoOptions)));
+
+        var demoEnabled = builder.Configuration.GetValue<bool>($"{nameof(DemoOptions)}:Enabled");
+        var connectionString = builder.Configuration.GetConnectionString(nameof(SqlServerDatabaseContext));
+        if (demoEnabled)
+        {
+            var demoConnectionString = builder.Configuration.GetConnectionString("DemoSqlServerDatabaseContext")
+                ?? throw new InvalidOperationException("Demo mode requires a dedicated DemoSqlServerDatabaseContext connection string.");
+            var demoConnection = new SqlConnectionStringBuilder(demoConnectionString);
+            if (string.IsNullOrWhiteSpace(demoConnection.InitialCatalog))
+                throw new InvalidOperationException("Demo mode requires an explicitly named isolated database.");
+
+            if (!string.IsNullOrWhiteSpace(connectionString))
+            {
+                var normalConnection = new SqlConnectionStringBuilder(connectionString);
+                if (string.Equals(demoConnection.DataSource, normalConnection.DataSource, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(demoConnection.InitialCatalog, normalConnection.InitialCatalog, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("The demo database must be separate from the normal application database.");
+            }
+
+            connectionString = demoConnectionString;
+        }
+
         builder.Services.AddScoped<IInterceptor, SoftRemovableInterceptor>();
         builder.Services.AddScoped<IInterceptor, AuditableInterceptor>();
 
         builder.Services.AddDbContext<SqlServerDatabaseContext>((sp, options) =>
         {
-            options.UseSqlServer(builder.Configuration.GetConnectionString(nameof(SqlServerDatabaseContext)));
+            options.UseSqlServer(connectionString);
 
             options.AddInterceptors(sp.GetServices<IInterceptor>());
         });

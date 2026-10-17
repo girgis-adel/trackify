@@ -6,10 +6,11 @@ using Domain.Entities.Identity;
 using Domain.Entities.TrackDistributions;
 using Domain.Entities.Tracks;
 using Domain.Enums;
+using Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
-using System.Security.Claims;
 
 namespace Infrastructure.Persistence.Contexts;
 
@@ -18,6 +19,8 @@ public sealed class SqlServerDatabaseContextInitializer(
     RoleManager<Role> roleManager,
     SqlServerDatabaseContext databaseContext,
     ILookupNormalizer lookupNormalizer,
+    IOptions<DemoOptions> demoOptions,
+    IConfiguration configuration,
     IOptions<SuperAdminUser>? SuperAdminUserAccessor = null)
 {
     private readonly SuperAdminUser superAdminUser = SuperAdminUserAccessor?.Value ?? new SuperAdminUser();
@@ -59,13 +62,36 @@ public sealed class SqlServerDatabaseContextInitializer(
 
     public async Task InitializeAsync()
     {
+        // Remove the credential claims created by earlier versions of the sample seeder.
+        var passwordClaims = await databaseContext.UserClaims.Where(c => c.ClaimType == "password").ToListAsync();
+        if (passwordClaims.Count > 0)
+        {
+            databaseContext.UserClaims.RemoveRange(passwordClaims);
+            await databaseContext.SaveChangesAsync();
+        }
+
         await SeedRolesAsync();
+        if (!demoOptions.Value.Enabled)
+        {
+            var configuredPassword = configuration[$"{nameof(SuperAdminUser)}:Password"];
+            if (!string.IsNullOrWhiteSpace(configuredPassword))
+            {
+                if (configuredPassword == new SuperAdminUser().Password || configuredPassword == DemoAccounts.Password)
+                    throw new InvalidOperationException("Public sample passwords cannot be used for the normal super admin account.");
+
+                await SeedSuperAdminUserAsync();
+            }
+
+            return;
+        }
+
         await SeedSuperAdminUserAsync();
         await SeedAdminUsersAsync();
         await SeedArtistUsersAsync();
         await SeedDSPsAsync();
         await SeedTracksAsync();
         await SeedTrackDistributionsAsync();
+        await SeedDemoUsersAsync();
     }
 
     private async Task SeedRolesAsync()
@@ -76,7 +102,9 @@ public sealed class SqlServerDatabaseContextInitializer(
         {
             if (!await roleManager.RoleExistsAsync(roleName))
             {
-                await roleManager.CreateAsync(new Role { Name = roleName });
+                var result = await roleManager.CreateAsync(new Role { Name = roleName });
+                if (!result.Succeeded)
+                    throw new InvalidOperationException($"Failed to create role {roleName}: {string.Join(", ", result.Errors.Select(e => e.Description))}");
             }
         }
     }
@@ -147,7 +175,6 @@ public sealed class SqlServerDatabaseContextInitializer(
                 var normalizedEmail = lookupNormalizer.NormalizeEmail(fakeAdmin.Email!);
                 var admin = await databaseContext.Users.IgnoreQueryFilters()
                     .SingleOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail);
-                var created = admin is null;
                 if (admin is null)
                 {
                     admin = new User
@@ -181,12 +208,6 @@ public sealed class SqlServerDatabaseContextInitializer(
                     {
                         throw new InvalidOperationException($"Failed to assign admin role to {fakeAdmin.Email}: {string.Join(", ", result.Errors.Select(e => e.Description))}");
                     }
-                }
-
-                if (created)
-                {
-                    // for development purposes, we can add a claim to store the password in plain text (not recommended for production)
-                    await userManager.AddClaimAsync(admin, new Claim("password", fakeAdmin.Password!));
                 }
             }
         }
@@ -334,6 +355,61 @@ public sealed class SqlServerDatabaseContextInitializer(
         }
 
         await databaseContext.SaveChangesAsync();
+    }
+
+    private async Task SeedDemoUsersAsync()
+    {
+        foreach (var seed in DemoAccounts.Accounts)
+        {
+            var normalizedEmail = lookupNormalizer.NormalizeEmail(seed.Email);
+            var normalizedUserName = lookupNormalizer.NormalizeName(seed.UserName);
+            var user = await databaseContext.Users.IgnoreQueryFilters()
+                .SingleOrDefaultAsync(u => u.Id == seed.Id || u.NormalizedEmail == normalizedEmail || u.NormalizedUserName == normalizedUserName);
+            if (user is null)
+            {
+                user = new User
+                {
+                    Id = seed.Id,
+                    UserName = seed.UserName,
+                    Email = seed.Email,
+                    EmailConfirmed = true,
+                };
+                var result = await userManager.CreateAsync(user, DemoAccounts.Password);
+                if (!result.Succeeded)
+                    throw new InvalidOperationException($"Failed to create demo user {seed.Email}: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+            }
+            else if (user.Id != seed.Id || user.NormalizedEmail != normalizedEmail || user.NormalizedUserName != normalizedUserName)
+            {
+                throw new InvalidOperationException($"The demo identity {seed.Email} belongs to another user.");
+            }
+
+            if (!user.IsActive || user.RemovedAt is not null || !user.EmailConfirmed || user.TwoFactorEnabled ||
+                await userManager.IsLockedOutAsync(user) || !await userManager.CheckPasswordAsync(user, DemoAccounts.Password))
+                throw new InvalidOperationException($"The demo user {seed.Email} cannot authenticate with its designated credentials.");
+
+            var roles = await userManager.GetRolesAsync(user);
+            if (roles.Any(role => role != seed.Role.ToString()))
+                throw new InvalidOperationException($"The demo user {seed.Email} has unexpected roles.");
+
+            if (!roles.Contains(seed.Role.ToString()))
+            {
+                var result = await userManager.AddToRoleAsync(user, seed.Role.ToString());
+                if (!result.Succeeded)
+                    throw new InvalidOperationException($"Failed to assign the demo role: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+            }
+
+            if (seed.Role == Roles.Artist && !await databaseContext.Artists.IgnoreQueryFilters().AnyAsync(a => a.UserId == user.Id))
+            {
+                databaseContext.Artists.Add(new Artist("trackify-demo-artist-profile")
+                {
+                    UserId = user.Id,
+                    Name = seed.DisplayName,
+                    EmailSnapshot = seed.Email,
+                    Country = "Egypt",
+                });
+                await databaseContext.SaveChangesAsync();
+            }
+        }
     }
 
     private sealed class UserSeed
