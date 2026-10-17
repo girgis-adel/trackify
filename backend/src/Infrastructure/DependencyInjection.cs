@@ -42,6 +42,8 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        builder.Services.AddTransient<SqlServerDatabaseContextInitializer>();
+
         return builder;
     }
 
