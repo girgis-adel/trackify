@@ -10,7 +10,9 @@ export interface Artist {
   country: string | null;
 }
 export interface CreateArtist {
-  userId: string;
+  userName: string;
+  email: string;
+  password: string;
   name: string;
   country: string | null;
 }
