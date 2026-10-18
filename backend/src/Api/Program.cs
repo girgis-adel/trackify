@@ -65,7 +65,10 @@ public class Program
 
         app.UseExceptionHandler();
         app.UseStatusCodePages();
-        app.UseHttpsRedirection();
+        // The local Angular dev proxy forwards /api over the loopback HTTP endpoint.
+        // Keep HTTPS redirection for deployed environments without redirecting proxied requests across origins.
+        if (!app.Environment.IsDevelopment())
+            app.UseHttpsRedirection();
 
         app.UseAuthentication();
         app.UseAuthorization();
