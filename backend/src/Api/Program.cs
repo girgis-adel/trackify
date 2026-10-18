@@ -1,7 +1,6 @@
 using Api.Middleware;
 using Application;
 using Asp.Versioning;
-using Common.Options;
 using Infrastructure;
 using Infrastructure.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
@@ -53,8 +52,7 @@ public class Program
         catch (Exception ex)
         {
             logger.LogError(ex, "An error occurred while migrating or initializing the SQL Server database.");
-            if (builder.Configuration.GetValue<bool>($"{nameof(DemoOptions)}:Enabled"))
-                throw;
+            throw;
         }
 
         // Configure the HTTP request pipeline.

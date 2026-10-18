@@ -1,7 +1,6 @@
 ﻿using Domain.Entities.TrackDistributions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using System.Reflection.Emit;
 
 namespace Infrastructure.Persistence.Configurations;
 
@@ -10,6 +9,7 @@ internal sealed class TrackDistributionConfiguration : IEntityTypeConfiguration<
     public void Configure(EntityTypeBuilder<TrackDistribution> builder)
     {
         builder.Property(td => td.Status).HasConversion<string>();
+        builder.HasIndex(td => new { td.TrackId, td.DSPId }).IsUnique();
         builder.HasQueryFilter(d => !d.Track.IsRemovable || d.Track.RemovedAt == null);
     }
 }

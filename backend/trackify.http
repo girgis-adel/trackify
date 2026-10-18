@@ -1,0 +1,54 @@
+@baseUrl = http://localhost:8080/api/v1
+@token = REPLACE_WITH_ACCESS_TOKEN
+@artistId = REPLACE_WITH_ARTIST_ID
+@trackId = REPLACE_WITH_TRACK_ID
+@dspId = REPLACE_WITH_DSP_ID
+
+### Public catalog and filters
+GET {{baseUrl}}/artists
+
+###
+GET {{baseUrl}}/tracks?artistId={{artistId}}&genre=Jazz&status=Draft
+
+###
+GET {{baseUrl}}/tracks/{{trackId}}
+
+### Login (use credentials for your configured account)
+POST {{baseUrl}}/identity/login
+Content-Type: application/json
+
+{
+  "email": "REPLACE_WITH_EMAIL",
+  "password": "REPLACE_WITH_PASSWORD"
+}
+
+### Create a draft track
+POST {{baseUrl}}/tracks
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "artistId": "{{artistId}}",
+  "isrc": "USTFY2600009",
+  "title": "New Release",
+  "genre": "Jazz",
+  "releaseDate": "2026-11-20T00:00:00"
+}
+
+### Submit to a DSP
+POST {{baseUrl}}/tracks/{{trackId}}/distribute
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "dspIds": ["{{dspId}}"]
+}
+
+### Update status
+PATCH {{baseUrl}}/tracks/{{trackId}}/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "Submitted"
+}

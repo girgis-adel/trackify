@@ -11,4 +11,6 @@ public sealed record TrackDetailsResponse(
     DateTime? ReleaseDate,
     string Genre,
     TrackStatus Status,
+    string ArtistId,
+    string ArtistName,
     IReadOnlyList<DistributionResponse> Distributions);

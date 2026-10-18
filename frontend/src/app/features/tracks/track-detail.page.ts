@@ -42,7 +42,11 @@ import { TrackDetails, TrackService } from './track.service';
         <div class="detail-intro">
           <p class="eyebrow accent-text">TRACK PROFILE</p>
           <h1>{{ item.title }}</h1>
-          <p>{{ item.genre }} <span class="dot-separator">·</span> {{ item.isrc }}</p>
+          <p>
+            <a [routerLink]="['/artists', item.artistId]">{{ item.artistName }}</a>
+            <span class="dot-separator">·</span> {{ item.genre }}
+            <span class="dot-separator">·</span> {{ item.isrc }}
+          </p>
           <span class="status-pill" [class]="'status-pill ' + item.status.toLowerCase()">{{
             item.status
           }}</span>
@@ -52,6 +56,12 @@ import { TrackDetails, TrackService } from './track.service';
         <section class="surface-card">
           <div class="section-heading compact-heading"><h2>Release details</h2></div>
           <dl class="info-list">
+            <div>
+              <dt>Artist</dt>
+              <dd>
+                <a [routerLink]="['/artists', item.artistId]">{{ item.artistName }}</a>
+              </dd>
+            </div>
             <div>
               <dt>ISRC</dt>
               <dd>{{ item.isrc }}</dd>

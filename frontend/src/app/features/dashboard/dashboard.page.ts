@@ -101,7 +101,9 @@ import { Track, TrackService } from '../tracks/track.service';
                 ><span class="cover-art cover-{{ i % 4 }}"><mat-icon>music_note</mat-icon></span
                 ><span class="track-main"
                   ><strong>{{ track.title }}</strong
-                  ><small>{{ track.genre }} · {{ track.isrc }}</small></span
+                  ><small
+                    >{{ track.artistName }} · {{ track.genre }} · {{ track.isrc }}</small
+                  ></span
                 ><span class="track-date">{{
                   track.releaseDate ? (track.releaseDate | date: 'mediumDate') : 'No release date'
                 }}</span

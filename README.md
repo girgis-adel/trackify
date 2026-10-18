@@ -58,6 +58,8 @@ Host bindings use `127.0.0.1`. `FRONTEND_PORT`, `SQLSERVER_PORT`, and `REDIS_POR
 
 Compose sets both API SQL connection strings, the Redis address, JWT key, and demo settings through environment variables. Demo mode selects dedicated `TrackifyDemo`, separate from the ordinary `TrackifyApp` database. The API calls `MigrateAsync()` and its idempotent initializer on startup; it seeds roles, the configured assessment owner, demo users, artists, tracks, DSPs, and distributions. No manual database creation or `dotnet ef` command is needed. Normal restarts keep data in `sqlserver-data`. The public demo profiles are returned by `/api/v1/demo/accounts` when demo mode is enabled and displayed by the UI.
 
+The `LinkTracksToArtists` migration preserves existing tracks and distributions. It assigns the eight known demo ISRC/title fixtures to the three seeded artists as an explicit demo-data attribution. Other legacy tracks are assigned to a clearly labeled **Legacy artist (unattributed)** placeholder, whose Identity user cannot sign in. The migration then requires `Tracks.ArtistId` and prevents duplicate Track/DSP distribution pairs. It refuses to add that unique constraint if an existing database already contains duplicate pairs; resolve those records deliberately before retrying. It does not delete existing records.
+
 The API container uses ASP.NET Core `Development` so HTTP behind the local Nginx proxy does not redirect to an unavailable container HTTPS endpoint. Its Docker build excludes the tracked `appsettings.Development.json`; local machine connection values and credentials are not baked into the image. Do not use this demo configuration on a public host.
 
 ## Local application development
@@ -119,7 +121,38 @@ export DemoOptions__Enabled=true
 dotnet run --project backend/src/Api/Api.csproj --launch-profile https
 ```
 
-Tracked development appsettings can remain unchanged because environment variables override them. The API still migrates and seeds on startup.
+Development appsettings contain no signing key or administrator credentials. Supply them through environment variables as shown; the API rejects missing or weak JWT configuration and runs migrations and seeding on startup.
+
+For manual EF Core inspection, set `ConnectionStrings__SqlServerDatabaseContext` to the target SQL Server database, then run from the repository root:
+
+```bash
+dotnet ef migrations list --project backend/src/Infrastructure/Infrastructure.csproj --startup-project backend/src/Api/Api.csproj
+dotnet ef migrations script --project backend/src/Infrastructure/Infrastructure.csproj --startup-project backend/src/Api/Api.csproj
+```
+
+The design-time context factory needs only that connection-string environment variable; it does not start the API or Redis. To apply manually, review the script and run `dotnet ef database update` with the same `--project` and `--startup-project` options. For the demo database, point the variable to `TrackifyDemo` before invoking EF. Ordinary Docker and API startup apply migrations automatically.
+
+## API routes and JWT
+
+Both `/api/v1/...` and `/api/...` routes are supported. Public reads include `GET /artists`, `GET /tracks?artistId=&genre=&status=`, `GET /tracks/{id}`, `GET /dsps`, and `GET /ui/bootstrap`. Managers (`Admin` or `SuperAdmin`) can call `POST /artists`, `POST /tracks`, `POST /tracks/{id}/distribute`, and `PATCH /tracks/{id}/status`. `POST /artists` accepts artist name, user name, email, password, and optional country; it creates the Identity user and linked artist profile together. A newly created track starts in `Draft`; its ISRC must be unique and contain 12 letters/digits in standard ISRC order. `GET /users/me` requires a JWT. The Angular UI offers the corresponding manager-only forms and actions, but the API enforces authorization independently.
+
+In demo mode, obtain a JWT from an API-provided manager profile using PowerShell:
+
+```powershell
+$base = 'http://localhost:8080/api/v1'
+$admin = Invoke-RestMethod "$base/demo/accounts" | Where-Object persona -eq 'Admin' | Select-Object -First 1
+$login = Invoke-RestMethod "$base/identity/login" -Method Post -ContentType 'application/json' -Body (@{ email = $admin.email; password = $admin.password } | ConvertTo-Json)
+$token = $login.accessToken
+Invoke-RestMethod "$base/users/me" -Headers @{ Authorization = "Bearer $token" }
+```
+
+For non-demo mode, send your configured account's email and password to `POST /api/v1/identity/login` and use the returned `accessToken` as `Authorization: Bearer <token>`. The protected request examples in [backend/trackify.http](backend/trackify.http) use the same routes. Demo credentials are intentionally available only while `DemoOptions:Enabled` is true in Development; never expose the local demo stack publicly.
+
+Earlier commits contained development-only credentials and a fixed JWT signing key. They have been removed from current tracked configuration. Rotate any of those values if they were ever reused outside disposable local development; published Git history is not rewritten here.
+
+## Acceptance checks
+
+Run `dotnet build trackify.slnx --no-restore`, `npm run build`, and `npm test -- --watch=false` from `frontend/` after restoring dependencies. With the demo Docker stack running, `./tests/acceptance.ps1` checks seed counts, JWT roles and payload, authorization, artist/track creation, validation, filters, distribution, and status updates through Nginx. The script creates uniquely named test artist and track records in the demo database. `./tests/migration-backfill.ps1` applies both migrations to a disposable SQL database, verifies an unknown legacy track and its distribution survive the backfill, and removes that test database. `docker compose down` stops services while preserving the main SQL volume.
 
 ## Useful commands
 

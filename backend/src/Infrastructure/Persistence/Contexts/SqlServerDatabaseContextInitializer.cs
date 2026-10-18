@@ -34,14 +34,14 @@ public sealed class SqlServerDatabaseContextInitializer(
 
     private static readonly TrackSeed[] TrackSeeds =
     [
-        new("USTFY2600001", "Copper Skies", "Indie Folk", TrackStatus.Draft, null),
-        new("USTFY2600002", "Meridian Drive", "Synthpop", TrackStatus.Submitted, new DateTime(2026, 11, 20)),
-        new("USTFY2400003", "Tidal Patterns", "Ambient", TrackStatus.Distributed, new DateTime(2024, 6, 14)),
-        new("USTFY2500004", "Green Line", "Jazz", TrackStatus.Distributed, new DateTime(2025, 3, 21)),
-        new("USTFY2600005", "After the Rain", "R&B", TrackStatus.Submitted, new DateTime(2026, 12, 4)),
-        new("USTFY2500006", "Lanterns at Dawn", "Electronic", TrackStatus.Distributed, new DateTime(2025, 8, 8)),
-        new("USTFY2600007", "Northbound Lanes", "Alternative Rock", TrackStatus.Draft, null),
-        new("USTFY2600008", "Solstice Echoes", "Hip-Hop", TrackStatus.Distributed, new DateTime(2026, 5, 29))
+        new("USTFY2600001", "Copper Skies", "Indie Folk", TrackStatus.Draft, null, "mara.voss@example.test"),
+        new("USTFY2600002", "Meridian Drive", "Synthpop", TrackStatus.Submitted, new DateTime(2026, 11, 20), "nia.okafor@example.test"),
+        new("USTFY2400003", "Tidal Patterns", "Ambient", TrackStatus.Distributed, new DateTime(2024, 6, 14), "lucia.reyes@example.test"),
+        new("USTFY2500004", "Green Line", "Jazz", TrackStatus.Distributed, new DateTime(2025, 3, 21), "mara.voss@example.test"),
+        new("USTFY2600005", "After the Rain", "R&B", TrackStatus.Submitted, new DateTime(2026, 12, 4), "nia.okafor@example.test"),
+        new("USTFY2500006", "Lanterns at Dawn", "Electronic", TrackStatus.Distributed, new DateTime(2025, 8, 8), "lucia.reyes@example.test"),
+        new("USTFY2600007", "Northbound Lanes", "Alternative Rock", TrackStatus.Draft, null, "mara.voss@example.test"),
+        new("USTFY2600008", "Solstice Echoes", "Hip-Hop", TrackStatus.Distributed, new DateTime(2026, 5, 29), "nia.okafor@example.test")
     ];
 
     private static readonly DistributionSeed[] DistributionSeeds =
@@ -76,7 +76,7 @@ public sealed class SqlServerDatabaseContextInitializer(
             var configuredPassword = configuration[$"{nameof(SuperAdminUser)}:Password"];
             if (!string.IsNullOrWhiteSpace(configuredPassword))
             {
-                if (configuredPassword == new SuperAdminUser().Password || configuredPassword == DemoAccounts.Password)
+                if (configuredPassword == DemoAccounts.Password)
                     throw new InvalidOperationException("Public sample passwords cannot be used for the normal super admin account.");
 
                 await SeedSuperAdminUserAsync();
@@ -284,6 +284,15 @@ public sealed class SqlServerDatabaseContextInitializer(
 
     private async Task SeedTracksAsync()
     {
+        var artistEmails = TrackSeeds.Select(t => t.ArtistEmail).Distinct().ToArray();
+        var matchingArtists = await databaseContext.Artists.AsNoTracking()
+            .Where(a => artistEmails.Contains(a.EmailSnapshot))
+            .Select(a => new { a.Id, a.EmailSnapshot })
+            .ToListAsync();
+        var artists = matchingArtists.ToDictionary(a => a.EmailSnapshot, a => a.Id, StringComparer.OrdinalIgnoreCase);
+        if (artists.Count != artistEmails.Length)
+            throw new InvalidOperationException("Seed artists must exist before seeding tracks.");
+
         var isrcs = TrackSeeds.Select(t => t.Isrc).ToArray();
         var existingIsrcs = await databaseContext.Tracks.IgnoreQueryFilters()
             .Where(t => isrcs.Contains(t.Isrc))
@@ -297,6 +306,7 @@ public sealed class SqlServerDatabaseContextInitializer(
             {
                 databaseContext.Tracks.Add(new Track
                 {
+                    ArtistId = artists[seed.ArtistEmail],
                     Isrc = seed.Isrc,
                     Title = seed.Title,
                     Genre = seed.Genre,
@@ -424,7 +434,7 @@ public sealed class SqlServerDatabaseContextInitializer(
 
     private sealed record ArtistSeed(string Name, string UserName, string Email, string Country, string Password);
 
-    private sealed record TrackSeed(string Isrc, string Title, string Genre, TrackStatus Status, DateTime? ReleaseDate);
+    private sealed record TrackSeed(string Isrc, string Title, string Genre, TrackStatus Status, DateTime? ReleaseDate, string ArtistEmail);
 
     private sealed record DistributionSeed(string Isrc, string DspName, TrackDistributionStatus Status);
 }

@@ -10,6 +10,16 @@ export interface Track {
   releaseDate: string | null;
   genre: string;
   status: string;
+  artistId: string;
+  artistName: string;
+}
+
+export interface CreateTrack {
+  artistId: string;
+  isrc: string;
+  title: string;
+  genre: string;
+  releaseDate: string | null;
 }
 
 export interface Distribution {
@@ -25,6 +35,7 @@ export interface TrackDetails extends Track {
   distributions: Distribution[];
 }
 export interface TrackFilter {
+  artistId?: string;
   genre?: string;
   status?: string;
 }
@@ -35,6 +46,7 @@ export class TrackService {
 
   list(filter: TrackFilter = {}): Observable<Track[]> {
     let params = new HttpParams();
+    if (filter.artistId) params = params.set('artistId', filter.artistId);
     if (filter.genre) params = params.set('genre', filter.genre);
     if (filter.status) params = params.set('status', filter.status);
     return this.http.get<Track[]>(`${apiBase}/tracks`, { params });
@@ -42,6 +54,10 @@ export class TrackService {
 
   get(id: string): Observable<TrackDetails> {
     return this.http.get<TrackDetails>(`${apiBase}/tracks/${encodeURIComponent(id)}`);
+  }
+
+  create(request: CreateTrack): Observable<Track> {
+    return this.http.post<Track>(`${apiBase}/tracks`, request);
   }
 
   updateStatus(id: string, status: string): Observable<Track> {

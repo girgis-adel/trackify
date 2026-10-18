@@ -22,6 +22,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/tracks/tracks.page').then((m) => m.TracksPage),
       },
       {
+        path: 'tracks/new',
+        canActivate: [managerGuard],
+        loadComponent: () =>
+          import('./features/tracks/track-create.page').then((m) => m.TrackCreatePage),
+      },
+      {
         path: 'tracks/:id',
         loadComponent: () =>
           import('./features/tracks/track-detail.page').then((m) => m.TrackDetailPage),

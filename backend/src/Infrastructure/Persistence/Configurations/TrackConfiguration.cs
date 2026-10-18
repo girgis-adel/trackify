@@ -8,6 +8,10 @@ internal sealed class TrackConfiguration : IEntityTypeConfiguration<Track>
 {
     public void Configure(EntityTypeBuilder<Track> builder)
     {
+        builder.HasOne(t => t.Artist).WithMany().HasForeignKey(t => t.ArtistId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(t => t.ArtistId);
+
         builder.Property(t => t.Isrc).HasMaxLength(256);
         builder.HasIndex(t => t.Isrc).IsUnique();
 

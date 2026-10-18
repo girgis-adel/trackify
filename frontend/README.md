@@ -2,6 +2,8 @@
 
 Angular 22 and Angular Material frontend for the Trackify API. It uses real v1 endpoints and does not mock account, track, or distribution data. For full-stack setup, configuration, demo accounts, and troubleshooting, start with the [root README](../README.md).
 
+The track list displays artist names and supports artist, genre, and status filters. Managers can create artists and draft tracks, update track status, and submit tracks to DSPs; track details show the associated artist and each DSP status.
+
 ## Full Docker stack
 
 From the repository root, prepare `.env` from `.env.example`, set the three required secrets, then run:

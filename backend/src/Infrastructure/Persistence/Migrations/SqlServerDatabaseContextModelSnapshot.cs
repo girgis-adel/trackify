@@ -262,7 +262,8 @@ namespace Infrastructure.Persistence.Migrations
 
                     b.HasIndex("DSPId");
 
-                    b.HasIndex("TrackId");
+                    b.HasIndex("TrackId", "DSPId")
+                        .IsUnique();
 
                     b.ToTable("TrackDistributions");
                 });
@@ -270,6 +271,10 @@ namespace Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Domain.Entities.Tracks.Track", b =>
                 {
                     b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("ArtistId")
+                        .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<DateTimeOffset>("CreateDate")
@@ -316,6 +321,8 @@ namespace Infrastructure.Persistence.Migrations
                         .HasColumnType("rowversion");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ArtistId");
 
                     b.HasIndex("Isrc")
                         .IsUnique();
@@ -457,6 +464,17 @@ namespace Infrastructure.Persistence.Migrations
                     b.Navigation("DSP");
 
                     b.Navigation("Track");
+                });
+
+            modelBuilder.Entity("Domain.Entities.Tracks.Track", b =>
+                {
+                    b.HasOne("Domain.Entities.Artists.Artist", "Artist")
+                        .WithMany()
+                        .HasForeignKey("ArtistId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Artist");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

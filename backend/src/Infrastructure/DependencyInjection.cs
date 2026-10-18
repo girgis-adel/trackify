@@ -40,6 +40,8 @@ public static class DependencyInjection
             .Bind(builder.Configuration.GetSection(nameof(DemoOptions)));
 
         var demoEnabled = builder.Configuration.GetValue<bool>($"{nameof(DemoOptions)}:Enabled");
+        if (demoEnabled && !builder.Environment.IsDevelopment())
+            throw new InvalidOperationException("Demo mode is only supported in the Development environment.");
         var connectionString = builder.Configuration.GetConnectionString(nameof(SqlServerDatabaseContext));
         if (demoEnabled)
         {
@@ -148,17 +150,23 @@ public static class DependencyInjection
     {
         var options = builder.Configuration.GetSection(nameof(AppJwtBearerOptions)).Get<AppJwtBearerOptions>()
             ?? throw new InvalidOperationException("AppJwtBearerOptions is not configured");
+        if (string.IsNullOrWhiteSpace(options.SecretKey) || Encoding.UTF8.GetByteCount(options.SecretKey) < 32 ||
+            string.IsNullOrWhiteSpace(options.Issuer) || string.IsNullOrWhiteSpace(options.Audience) ||
+            !double.IsFinite(options.ExpirationInMinutes) || options.ExpirationInMinutes is < 1 or > 1440)
+            throw new InvalidOperationException("A valid JWT key (at least 32 bytes), issuer, audience, and expiration are required.");
 
 
         builder.Services.AddAuthorization();
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(jwtOptions =>
             {
-                jwtOptions.RequireHttpsMetadata = false;
                 jwtOptions.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.SecretKey)),
+
+                    RequireExpirationTime = true,
+                    ValidateLifetime = true,
 
                     ValidateIssuer = true,
                     ValidIssuer = options.Issuer,

@@ -1,5 +1,6 @@
 ﻿using Common.Core;
 using Common.Core.Properties;
+using Domain.Entities.Artists;
 using Domain.Enums;
 
 namespace Domain.Entities.Tracks;
@@ -13,6 +14,10 @@ public sealed class Track : RemovableEntity, IIsActive
     public string Isrc { get; set; } = default!;
 
     public string Title { get; set; } = default!;
+
+    public string ArtistId { get; set; } = default!;
+
+    public Artist Artist { get; set; } = default!;
 
     public DateTime? ReleaseDate { get; set; }
 

@@ -7,9 +7,10 @@ public sealed class TrackFilterRequestValidator : AbstractValidator<TrackFilterR
 {
     public TrackFilterRequestValidator()
     {
-        RuleFor(r => r.ArtistId).Null()
-            .WithMessage("Artist filtering is unavailable because tracks do not yet have an artist relationship.");
-        RuleFor(r => r.Genre).NotEmpty().MaximumLength(128).When(r => r.Genre is not null);
+        RuleFor(r => r.ArtistId).Cascade(CascadeMode.Stop).NotEmpty().MaximumLength(450)
+            .Must(value => !string.IsNullOrWhiteSpace(value)).When(r => r.ArtistId is not null);
+        RuleFor(r => r.Genre).Cascade(CascadeMode.Stop).NotEmpty().MaximumLength(128)
+            .Must(value => !string.IsNullOrWhiteSpace(value)).When(r => r.Genre is not null);
         RuleFor(r => r.Status).IsInEnum().When(r => r.Status.HasValue);
     }
 }

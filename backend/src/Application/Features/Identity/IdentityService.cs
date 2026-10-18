@@ -53,8 +53,6 @@ public sealed class IdentityService(
             new(JwtRegisteredClaimNames.Sub, user.Id),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new(ClaimTypes.NameIdentifier, user.Id),
-            new(ClaimTypes.Name, currentUser.DisplayName),
-            new(ClaimTypes.Email, currentUser.Email),
         };
         claims.AddRange(currentUser.Roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
