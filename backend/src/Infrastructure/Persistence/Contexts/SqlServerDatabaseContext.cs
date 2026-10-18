@@ -29,6 +29,7 @@ public sealed class SqlServerDatabaseContext : IdentityDbContext<User, Role, str
         builder.ApplyConfigurationsFromAssembly(typeof(UserConfiguration).Assembly);
         builder.ApplySoftRemovableQueryFilters();
         builder.ApplyIsActiveQueryFilters();
+        builder.ConfigureVersion();
         builder.ApplyCreateDateProtectionBehavior();
     }
 }

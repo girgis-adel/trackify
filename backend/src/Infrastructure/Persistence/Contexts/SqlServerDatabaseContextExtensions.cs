@@ -64,4 +64,21 @@ public static class SqlServerDatabaseContextExtensions
             property?.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
         }
     }
+
+    public static void ConfigureVersion(this ModelBuilder builder)
+    {
+        foreach (var entityType in builder.Model.GetEntityTypes())
+        {
+            if (typeof(IVersion).IsAssignableFrom(entityType.ClrType))
+            {
+                var property = entityType.FindProperty(nameof(IVersion.Version));
+                if (property != null && property.ClrType == typeof(byte[]))
+                {
+                    builder.Entity(entityType.ClrType)
+                        .Property(nameof(IVersion.Version))
+                        .IsRowVersion();
+                }
+            }
+        }
+    }
 }
