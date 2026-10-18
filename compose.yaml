@@ -1,0 +1,79 @@
+name: trackify
+
+services:
+  sqlserver:
+    # SQL Server 2022 image tested with this stack, pinned to an immutable digest.
+    image: mcr.microsoft.com/mssql/server@sha256:cf8f0ab2ebe61feec2eed2629061a07d247f791c2a8ddda74a4ac9f06a291718
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${SQLSERVER_PORT:-14333}:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+
+  redis:
+    image: redis:8.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-16379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__SqlServerDatabaseContext: "Server=sqlserver,1433;Database=TrackifyApp;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True"
+      ConnectionStrings__DemoSqlServerDatabaseContext: "Server=sqlserver,1433;Database=TrackifyDemo;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True"
+      ConnectionStrings__Redis: redis:6379
+      AppJwtBearerOptions__SecretKey: ${APP_JWT_SECRET_KEY:?Set APP_JWT_SECRET_KEY in .env}
+      SuperAdminUser__UserName: assessment.owner
+      SuperAdminUser__Email: owner@trackify.local
+      SuperAdminUser__Password: ${DEMO_SUPERADMIN_PASSWORD:?Set DEMO_SUPERADMIN_PASSWORD in .env}
+      SuperAdminUser__PhoneNumber: ""
+      DemoOptions__Enabled: "true"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:8080/api/v1/ui/bootstrap"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 120s
+    restart: on-failure:3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-8080}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  sqlserver-data:

@@ -1,38 +1,36 @@
 # Trackify Studio frontend
 
-Angular 22 and Angular Material frontend for the existing Trackify API. The UI uses the backend's real v1 contracts; no frontend account, track, or distribution data is mocked.
+Angular 22 and Angular Material frontend for the Trackify API. It uses real v1 endpoints and does not mock account, track, or distribution data. For full-stack setup, configuration, demo accounts, and troubleshooting, start with the [root README](../README.md).
 
-## Local development
+## Full Docker stack
 
-From the repository root, make sure SQL Server and Redis are available at the addresses configured in `backend/src/Api/appsettings.Development.json`. The development configuration currently enables demo mode and uses its separate demo SQL database. Starting the API runs its existing EF Core migration and seed initializer against that configured database.
+From the repository root, prepare `.env` from `.env.example`, set the three required secrets, then run:
 
-In one PowerShell terminal:
-
-```powershell
-dotnet run --project backend/src/Api/Api.csproj --launch-profile https
+```bash
+docker compose up -d --build
+docker compose ps
 ```
 
-In another terminal:
+Open `http://localhost:8080` (or the configured `FRONTEND_PORT`). Nginx serves the production Angular build and forwards `/api/*` to the internal API container. Its SPA fallback supports refreshes on Angular routes and does not turn failed API calls into HTML pages. Select a demo profile on the sign-in page; the frontend retrieves profiles from the backend and sends the selected credentials through the real login endpoint.
 
-```powershell
-cd frontend
+## Local frontend development
+
+Use Node.js 24.15+ (or another [Angular 22 supported Node version](https://angular.dev/reference/versions)) and npm. Start the API with the `https` launch profile as described in the root README, then from `frontend/` run:
+
+```bash
 npm ci
 npm start
 ```
 
-Open `http://localhost:4200`. The API `https` launch profile listens on both `https://localhost:7288` and `http://localhost:5277`. The Angular development proxy forwards `/api` to the loopback HTTP endpoint. In Development, the API does not redirect that proxied request to HTTPS; deployed environments retain HTTPS redirection. This avoids cross-origin redirects and does not bypass certificate validation. Keep the API process running while using the frontend. If the API port changes, update `proxy.conf.json`. For a deployed production build, serve `/api/v1` from the same origin through the host's reverse proxy.
+Open `http://localhost:4200`. The application calls the relative `/api/v1` path. Angular's development proxy forwards `/api` to `http://localhost:5277`, one of the API launch profile's addresses. The Docker Nginx configuration forwards that same path to `api:8080`; no source edits or browser CORS configuration are needed when switching workflows. Keep the API running while using the frontend.
 
-On Windows, stop the running API with `Ctrl+C` before rebuilding backend projects. The running process can lock DLLs in `backend/src/Api/bin/Debug/net10.0`. Restart it after the build finishes.
-
-Demo profiles are fetched from `/api/v1/demo/accounts` only when `/api/v1/ui/bootstrap` reports that demo mode is enabled. A demo selection submits the credentials to `/api/v1/identity/login`. The browser keeps only the access token and expiration in session storage; there is no refresh endpoint. Guest browsing uses public endpoints without a token. Admin and SuperAdmin actions are based on the authenticated user's `canManageCatalog` capability and are enforced again by the API.
-
-The backend currently supports listing and viewing tracks, filtering by genre and status, status updates, DSP submissions, listing and viewing artists, creating an artist profile for an existing Identity user, and listing DSPs. There is no create-track or list-users API, and tracks have no artist relationship. The frontend does not invent those workflows.
+On Windows, stop the running API with `Ctrl+C` before rebuilding backend projects; its process can lock DLLs in `backend/src/Api/bin/Debug/net10.0`.
 
 ## Build
 
-```powershell
-cd frontend
+```bash
+npm ci
 npm run build
 ```
 
-Build output is written to `frontend/dist/frontend`.
+The production browser assets are written to `frontend/dist/frontend/browser` and copied into the Nginx image. The frontend stores the access token and expiration in session storage, uses the API's real authorization capabilities, and does not invent endpoints for unsupported workflows.

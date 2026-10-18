@@ -1,0 +1,11 @@
+.git/
+.vs/
+.env
+.env.*
+!.env.example
+frontend/
+**/bin/
+**/obj/
+**/*.user
+**/*.suo
+backend/src/Api/appsettings.Development.json
